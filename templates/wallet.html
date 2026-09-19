@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Traveler Wallet{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Traveler Wallet</h1>
+<p class="text-slate-400 text-sm mb-6">Holder DID: <code class="text-accent2">{{ holder_did }}</code></p>
+
+<form method="get" class="flex gap-2 mb-8 max-w-md">
+  <input name="did" value="{{ holder_did }}"
+         class="flex-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent2" />
+  <button class="px-4 py-2 bg-accent2 text-slate-900 rounded-md text-sm font-medium">Load wallet</button>
+</form>
+
+<div class="space-y-6">
+  {% for c in credentials %}
+  <div class="rounded-2xl border border-slate-800 bg-panel p-6">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <div class="font-mono text-sm text-accent">{{ c.credential_id }}</div>
+        <div class="text-xs text-slate-500">issued by {{ c.issuer_did }} &middot; expires {{ c.expiry_at }}</div>
+      </div>
+      <span class="text-xs px-2 py-0.5 rounded-full {{ 'bg-rose-900 text-rose-300' if c.visa_status == 'REVOKED' else 'bg-emerald-900 text-emerald-300' }}">
+        {{ c.visa_status }}
+      </span>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-3 text-sm mb-4">
+      <div><span class="text-slate-500">Name:</span> {{ c.traveler_name }}</div>
+      <div><span class="text-slate-500">Passport:</span> {{ c.passport_number }}</div>
+      <div><span class="text-slate-500">Nationality:</span> {{ c.nationality }}</div>
+      <div class="truncate"><span class="text-slate-500">Credential hash:</span> <span class="font-mono text-xs">{{ c.credential_hash }}</span></div>
+    </div>
+
+    <details class="mb-4">
+      <summary class="cursor-pointer text-xs text-slate-400">Show blinding entropy factor (salt) -- never share this</summary>
+      <div class="mt-2 text-xs font-mono bg-slate-950 border border-slate-800 rounded-md p-2 break-all">{{ c.salt }}</div>
+    </details>
+
+    <div class="border-t border-slate-800 pt-4">
+      <p class="text-xs text-slate-400 mb-2">
+        Generate a selective-disclosure proof to present at customs. This proves the asserted
+        status matches your issuer's commitment <em>without revealing the salt or any other field</em>.
+        The hash below is computed entirely in your browser -- the salt never leaves this page.
+      </p>
+      <div class="flex gap-2 items-end flex-wrap">
+        <div class="flex-1 min-w-[160px]">
+          <label class="text-xs text-slate-500">Assert status</label>
+          <select class="assert-status w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-sm">
+            <option value="VALID">VALID</option>
+            <option value="CONDITIONAL">CONDITIONAL</option>
+            <option value="DENIED">DENIED</option>
+            <option value="REVOKED">REVOKED</option>
+          </select>
+        </div>
+        <button class="gen-proof-btn px-4 py-1.5 bg-accent text-slate-900 rounded-md text-sm font-medium hover:opacity-90 transition"
+                data-salt="{{ c.salt }}" data-credential-id="{{ c.credential_id }}">
+          Compute proof (client-side)
+        </button>
+      </div>
+      <div class="proof-output hidden mt-3 text-xs font-mono bg-slate-950 border border-slate-800 rounded-md p-3 break-all leading-relaxed"></div>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-slate-500">No credentials held by this DID yet. Issue one from the Issuer Console.</p>
+  {% endfor %}
+</div>
+
+<script>
+async function sha256Hex(message) {
+  const enc = new TextEncoder().encode(message);
+  const digest = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+document.querySelectorAll('.gen-proof-btn').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('.rounded-2xl');
+    const status = card.querySelector('.assert-status').value;
+    const salt = btn.dataset.salt;
+    const credId = btn.dataset.credentialId;
+    const proof = await sha256Hex(status + salt);
+    const out = card.querySelector('.proof-output');
+    out.classList.remove('hidden');
+    out.innerHTML =
+      'credential_id: ' + credId + '<br>' +
+      'claimed_status: ' + status + '<br>' +
+      'proof_hash (SHA256(status + salt), computed in-browser): ' + proof +
+      '<br><br><span class="text-slate-500">Copy these three values into the Customs Portal. The salt itself is never transmitted.</span>';
+  });
+});
+</script>
+{% endblock %}

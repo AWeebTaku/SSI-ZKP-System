@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{% block title %}SSI / ZKP Border Verification{% endblock %}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: '#0b1120',
+          panel: '#111827',
+          accent: '#38bdf8',
+          accent2: '#a78bfa',
+        }
+      }
+    }
+  }
+</script>
+<link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body class="bg-ink text-slate-100 min-h-screen font-sans">
+  <header class="border-b border-slate-800 bg-panel/60 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-semibold text-lg">
+        <span class="w-2.5 h-2.5 rounded-full bg-accent shadow-[0_0_12px_rgba(56,189,248,0.8)]"></span>
+        SSI / ZKP Border Verification
+      </a>
+      <nav class="flex gap-1 text-sm">
+        <a href="/issuer" class="px-3 py-1.5 rounded-md hover:bg-slate-800 transition">Issuer</a>
+        <a href="/wallet" class="px-3 py-1.5 rounded-md hover:bg-slate-800 transition">Wallet</a>
+        <a href="/customs" class="px-3 py-1.5 rounded-md hover:bg-slate-800 transition">Customs</a>
+      </nav>
+    </div>
+    {% if chain is defined %}
+    <div class="max-w-6xl mx-auto px-6 pb-3 flex gap-3 text-xs">
+      <span class="px-2 py-0.5 rounded-full {{ 'bg-emerald-900 text-emerald-300' if chain.connected else 'bg-rose-900 text-rose-300' }}">
+        Ganache: {{ 'connected' if chain.connected else 'unreachable' }}
+      </span>
+      <span class="px-2 py-0.5 rounded-full {{ 'bg-emerald-900 text-emerald-300' if chain.deployed else 'bg-amber-900 text-amber-300' }}">
+        DidRegistry: {{ 'deployed' if chain.deployed else 'not deployed -- run python main.py' }}
+      </span>
+    </div>
+    {% endif %}
+  </header>
+  <main class="max-w-6xl mx-auto px-6 py-10">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="max-w-6xl mx-auto px-6 py-10 text-xs text-slate-500">
+    Demo system -- tripartite trust model (Issuer &middot; Holder Wallet &middot; Verifier) anchored to an EVM DID registry.
+  </footer>
+</body>
+</html>

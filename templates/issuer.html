@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Issuer Console{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Issuer Console</h1>
+<p class="text-slate-400 text-sm mb-8">Issuer DID: <code class="text-accent">{{ issuer_did }}</code></p>
+
+<div class="grid lg:grid-cols-2 gap-8">
+  <section class="rounded-2xl border border-slate-800 bg-panel p-6">
+    <h2 class="font-semibold mb-4">Issue Visa Credential</h2>
+    <form id="issue-form" class="space-y-3">
+      <div>
+        <label class="text-xs text-slate-400">Holder DID</label>
+        <input name="holder_did" required placeholder="did:ssi:holder:demo-traveler"
+               class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent" />
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-slate-400">Traveler name</label>
+          <input name="traveler_name" required placeholder="Jane Doe"
+                 class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Passport number</label>
+          <input name="passport_number" required placeholder="X1234567"
+                 class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent" />
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="text-xs text-slate-400">Nationality</label>
+          <input name="nationality" required placeholder="IN"
+                 class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Visa status</label>
+          <select name="visa_status" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm">
+            <option value="VALID">VALID</option>
+            <option value="CONDITIONAL">CONDITIONAL</option>
+            <option value="DENIED">DENIED</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Validity (days)</label>
+          <input type="number" name="validity_days" value="90"
+                 class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent" />
+        </div>
+      </div>
+      <button type="submit" class="w-full mt-2 bg-accent text-slate-900 font-medium rounded-md py-2 hover:opacity-90 transition">
+        Sign &amp; Anchor Credential
+      </button>
+    </form>
+    <pre id="issue-result" class="mt-4 text-xs bg-slate-950 border border-slate-800 rounded-md p-3 overflow-x-auto hidden"></pre>
+  </section>
+
+  <section class="rounded-2xl border border-slate-800 bg-panel p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold">Issued Credentials</h2>
+      <span class="text-xs text-slate-500">registry view -- no PII stored here</span>
+    </div>
+    <div class="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+      {% for c in issued %}
+      <div class="cred-row border border-slate-800 rounded-lg p-3 text-sm">
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="cred-id font-mono text-xs text-accent">{{ c.credential_id }}</div>
+            <div class="text-slate-400 text-xs">holder: {{ c.holder_did }}</div>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full {{ 'bg-rose-900 text-rose-300' if c.revoked else 'bg-emerald-900 text-emerald-300' }}">
+            {{ 'REVOKED' if c.revoked else 'ACTIVE' }}
+          </span>
+        </div>
+        <div class="mt-2 flex gap-2">
+          <button class="revoke-btn text-xs px-3 py-1 rounded-md bg-rose-900/60 hover:bg-rose-900 transition {% if c.revoked %}opacity-40 pointer-events-none{% endif %}">
+            Revoke on-chain
+          </button>
+        </div>
+      </div>
+      {% else %}
+      <p class="text-slate-500 text-sm">No credentials issued yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<script>
+document.getElementById('issue-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const pre = document.getElementById('issue-result');
+  pre.classList.remove('hidden');
+  pre.textContent = 'Submitting to chain...';
+  try {
+    const res = await fetch('/issue-visa', { method: 'POST', body: fd });
+    const data = await res.json();
+    pre.textContent = JSON.stringify(data, null, 2);
+    if (res.ok) setTimeout(() => location.reload(), 1200);
+  } catch (err) {
+    pre.textContent = 'Request failed: ' + err;
+  }
+});
+
+document.querySelectorAll('.revoke-btn').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const credId = btn.closest('.cred-row').querySelector('.cred-id').textContent.trim();
+    const fd = new FormData();
+    fd.append('credential_id', credId);
+    const res = await fetch('/revoke-visa', { method: 'POST', body: fd });
+    if (res.ok) {
+      location.reload();
+    } else {
+      alert('Revocation failed: ' + (await res.text()));
+    }
+  });
+});
+</script>
+{% endblock %}

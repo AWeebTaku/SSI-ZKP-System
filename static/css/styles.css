@@ -1,0 +1,11 @@
+/* Small overrides on top of Tailwind's CDN build */
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 999px;
+}

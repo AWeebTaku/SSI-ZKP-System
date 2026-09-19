@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Navigation Hub{% endblock %}
+{% block content %}
+<div class="text-center mb-14">
+  <h1 class="text-4xl font-bold tracking-tight mb-3">Cross-Border Travel Verification</h1>
+  <p class="text-slate-400 max-w-2xl mx-auto">
+    A self-sovereign identity system where visa credentials are issued off-chain,
+    anchored on an EVM ledger, held by the traveler, and checked at the border
+    using hash-commitment proofs -- no raw personal data ever
+    touches the verifier or the chain.
+  </p>
+</div>
+
+<div class="grid md:grid-cols-3 gap-6 mb-14">
+  <a href="/issuer" class="group rounded-2xl border border-slate-800 bg-panel p-6 hover:border-accent transition">
+    <div class="w-10 h-10 rounded-lg bg-accent/10 text-accent flex items-center justify-center mb-4 font-bold">I</div>
+    <h2 class="text-lg font-semibold mb-2">Issuer Console</h2>
+    <p class="text-sm text-slate-400">Issue signed visa credentials, anchor them on-chain, and broadcast revocations.</p>
+  </a>
+  <a href="/wallet" class="group rounded-2xl border border-slate-800 bg-panel p-6 hover:border-accent2 transition">
+    <div class="w-10 h-10 rounded-lg bg-accent2/10 text-accent2 flex items-center justify-center mb-4 font-bold">W</div>
+    <h2 class="text-lg font-semibold mb-2">Traveler Wallet</h2>
+    <p class="text-sm text-slate-400">Inspect held credentials, blinding salts, and generate selective-disclosure proofs.</p>
+  </a>
+  <a href="/customs" class="group rounded-2xl border border-slate-800 bg-panel p-6 hover:border-emerald-400 transition">
+    <div class="w-10 h-10 rounded-lg bg-emerald-400/10 text-emerald-300 flex items-center justify-center mb-4 font-bold">C</div>
+    <h2 class="text-lg font-semibold mb-2">Customs Portal</h2>
+    <p class="text-sm text-slate-400">Submit a credential ID and blinded proof to verify status against on-chain state.</p>
+  </a>
+</div>
+
+<div class="rounded-2xl border border-slate-800 bg-panel p-6">
+  <h3 class="font-semibold mb-3 text-sm text-slate-300">Trust flow</h3>
+  <ol class="text-sm text-slate-400 space-y-2 list-decimal list-inside">
+    <li><span class="text-slate-200">Issuer</span> signs traveler data (HMAC-SHA256) and anchors a commitment hash on <code class="text-accent">DidRegistry.sol</code>.</li>
+    <li><span class="text-slate-200">Holder</span> wallet stores the full credential locally, including the blinding salt.</li>
+    <li><span class="text-slate-200">Holder</span> presents only <code class="text-accent2">SHA256(status || salt)</code> -- never the salt or PII.</li>
+    <li><span class="text-slate-200">Verifier</span> (Customs) checks the commitment and <code class="text-accent">isRevoked()</code> on-chain. This is a hash-commitment demonstration, not a zk-SNARK.</li>
+  </ol>
+</div>
+{% endblock %}

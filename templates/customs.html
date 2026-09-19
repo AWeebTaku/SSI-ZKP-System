@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Customs Portal{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Customs Portal</h1>
+<p class="text-slate-400 text-sm mb-8">
+  Verify a blinded hash commitment against on-chain revocation state --
+  no PII is transmitted or stored here.
+</p>
+
+<div class="grid lg:grid-cols-2 gap-8">
+  <section class="rounded-2xl border border-slate-800 bg-panel p-6">
+    <h2 class="font-semibold mb-4">Submit for Verification</h2>
+    <form id="verify-form" class="space-y-3">
+      <div>
+        <label class="text-xs text-slate-400">Credential ID</label>
+        <input name="credential_id" required placeholder="vc-..."
+               class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-400" />
+      </div>
+      <div>
+        <label class="text-xs text-slate-400">Claimed status</label>
+        <input name="claimed_status" required value="VALID"
+               class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
+      </div>
+      <div>
+        <label class="text-xs text-slate-400">Blinded proof hash</label>
+        <input name="proof_hash" required placeholder="SHA256(status + salt) from the Wallet"
+               class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-400" />
+      </div>
+      <button type="submit" class="w-full mt-2 bg-emerald-400 text-slate-900 font-medium rounded-md py-2 hover:opacity-90 transition">
+        Verify against chain
+      </button>
+    </form>
+  </section>
+
+  <section class="rounded-2xl border border-slate-800 bg-panel p-6">
+    <h2 class="font-semibold mb-4">Result</h2>
+    <div id="result-placeholder" class="text-slate-500 text-sm">No verification run yet.</div>
+    <div id="result-card" class="hidden">
+      <div id="result-banner" class="rounded-lg px-4 py-3 mb-4 text-sm font-medium"></div>
+      <dl class="text-sm space-y-1.5">
+        <div class="flex justify-between"><dt class="text-slate-500">Proof valid</dt><dd id="r-proof" class="font-mono"></dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Anchored on-chain</dt><dd id="r-anchored" class="font-mono"></dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Revoked on-chain</dt><dd id="r-revoked" class="font-mono"></dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Expired</dt><dd id="r-expired" class="font-mono"></dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-slate-500 shrink-0">Reason</dt><dd id="r-reason" class="text-right"></dd></div>
+      </dl>
+    </div>
+  </section>
+</div>
+
+<script>
+document.getElementById('verify-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/verify-border', { method: 'POST', body: fd });
+  const data = await res.json();
+
+  document.getElementById('result-placeholder').classList.add('hidden');
+  const card = document.getElementById('result-card');
+  card.classList.remove('hidden');
+
+  const banner = document.getElementById('result-banner');
+  banner.textContent = data.verified ? 'VERIFIED -- admit traveler' : 'NOT VERIFIED -- flag for manual review';
+  banner.className = 'rounded-lg px-4 py-3 mb-4 text-sm font-medium ' +
+    (data.verified ? 'bg-emerald-900 text-emerald-300' : 'bg-rose-900 text-rose-300');
+
+  document.getElementById('r-proof').textContent = data.proof_valid;
+  document.getElementById('r-anchored').textContent = data.anchored;
+  document.getElementById('r-revoked').textContent = data.revoked;
+  document.getElementById('r-expired').textContent = data.expired;
+  document.getElementById('r-reason').textContent = data.reason;
+});
+</script>
+{% endblock %}
