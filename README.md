@@ -172,24 +172,7 @@ registered yet.
 
 Open http://127.0.0.1:8000/ for the navigation hub.
 
-## 5. GitHub Pages deployment
-
-GitHub Pages can host the static project overview in `docs/`, and this
-repository includes `.github/workflows/pages.yml` to deploy it automatically
-when `main` changes. In the repository settings, open **Pages**, choose
-**GitHub Actions** as the source, then push to `main` or run the workflow
-manually.
-
-GitHub Pages cannot run the complete application: it does not execute the
-FastAPI backend, persist `storage/*.json`, run Ganache, or perform the
-server-side contract transactions. The interactive issuer, wallet, and
-customs flow therefore needs FastAPI deployed on a service such as Render,
-Railway, Fly.io, or a VM, with an externally reachable EVM JSON-RPC endpoint.
-The Pages site can be extended into a static frontend later, but its API calls
-must point to that separately hosted backend rather than relative GitHub Pages
-URLs.
-
-## 6. End-to-end verification flow
+## 5. End-to-end verification flow
 
 ### Step A -- Issue a visa credential
 1. Go to **http://127.0.0.1:8000/issuer**.
@@ -227,7 +210,7 @@ URLs.
    verifier is checking live on-chain state and not a cached issuance
    record.
 
-## 7. API reference (curl examples)
+## 6. API reference (curl examples)
 
 ```bash
 # Issue
