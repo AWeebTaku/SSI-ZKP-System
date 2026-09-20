@@ -5,7 +5,7 @@
 <p class="text-slate-400 text-sm mb-6">Holder DID: <code class="text-accent2">{{ holder_did }}</code></p>
 
 <form method="get" class="flex gap-2 mb-8 max-w-md">
-  <input name="did" value="{{ holder_did }}"
+  <input name="did" placeholder="did:ssi:holder:demo-traveler"
          class="flex-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent2" />
   <button class="px-4 py-2 bg-accent2 text-slate-900 rounded-md text-sm font-medium">Load wallet</button>
 </form>
@@ -55,8 +55,19 @@
                 data-salt="{{ c.salt }}" data-credential-id="{{ c.credential_id }}">
           Compute proof (client-side)
         </button>
+        <button type="button" class="show-qr-btn hidden px-2.5 py-1.5 border border-slate-700 rounded-md text-xs text-slate-300 hover:border-accent2 hover:text-accent2 transition" aria-label="Show QR proof">
+          <span aria-hidden="true">QR</span>
+        </button>
       </div>
-      <div class="proof-output hidden mt-3 text-xs font-mono bg-slate-950 border border-slate-800 rounded-md p-3 break-all leading-relaxed"></div>
+      <div class="proof-output hidden mt-3 text-xs bg-slate-950 border border-slate-800 rounded-md p-3 space-y-2"></div>
+      <div class="qr-modal hidden fixed inset-0 z-50 items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true" aria-label="QR proof">
+        <div class="relative w-full max-w-sm rounded-2xl border border-slate-700 bg-panel p-6 text-center shadow-2xl">
+          <button type="button" class="close-qr-btn absolute right-4 top-3 text-2xl leading-none text-slate-400 hover:text-white" aria-label="Close QR proof">&times;</button>
+          <h2 class="font-semibold mb-1">Customs proof QR</h2>
+          <p class="text-xs text-slate-400 mb-4">Have Customs scan this code.</p>
+          <div class="qr-code inline-block bg-white p-2 rounded-md"></div>
+        </div>
+      </div>
     </div>
   </div>
   {% else %}
@@ -65,10 +76,63 @@
 </div>
 
 <script>
+function sha256HexFallback(message) {
+  const bytes = new TextEncoder().encode(message);
+  const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
+  const data = new Uint8Array(paddedLength);
+  data.set(bytes);
+  data[bytes.length] = 0x80;
+  new DataView(data.buffer).setUint32(paddedLength - 4, bytes.length * 8);
+
+  const roundConstants = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
+    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
+    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
+    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
+    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+  ];
+  let hash = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const rotateRight = (value, bits) => (value >>> bits) | (value << (32 - bits));
+
+  for (let offset = 0; offset < data.length; offset += 64) {
+    const words = new Uint32Array(64);
+    for (let i = 0; i < 16; i++) {
+      words[i] = new DataView(data.buffer, offset + i * 4, 4).getUint32(0);
+    }
+    for (let i = 16; i < 64; i++) {
+      const s0 = rotateRight(words[i - 15], 7) ^ rotateRight(words[i - 15], 18) ^ (words[i - 15] >>> 3);
+      const s1 = rotateRight(words[i - 2], 17) ^ rotateRight(words[i - 2], 19) ^ (words[i - 2] >>> 10);
+      words[i] = (words[i - 16] + s0 + words[i - 7] + s1) | 0;
+    }
+
+    let [a, b, c, d, e, f, g, h] = hash;
+    for (let i = 0; i < 64; i++) {
+      const s1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+      const choose = (e & f) ^ (~e & g);
+      const temp1 = (h + s1 + choose + roundConstants[i] + words[i]) | 0;
+      const s0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+      const majority = (a & b) ^ (a & c) ^ (b & c);
+      const temp2 = (s0 + majority) | 0;
+      [h, g, f, e, d, c, b, a] = [g, f, e, (d + temp1) | 0, c, b, a, (temp1 + temp2) | 0];
+    }
+    hash = hash.map((value, i) => (value + [a, b, c, d, e, f, g, h][i]) | 0);
+  }
+  return hash.map(value => (value >>> 0).toString(16).padStart(8, '0')).join('');
+}
+
 async function sha256Hex(message) {
   const enc = new TextEncoder().encode(message);
-  const digest = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+  if (window.crypto && window.crypto.subtle) {
+    const digest = await window.crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return sha256HexFallback(message);
 }
 
 document.querySelectorAll('.gen-proof-btn').forEach((btn) => {
@@ -80,12 +144,116 @@ document.querySelectorAll('.gen-proof-btn').forEach((btn) => {
     const proof = await sha256Hex(status + salt);
     const out = card.querySelector('.proof-output');
     out.classList.remove('hidden');
-    out.innerHTML =
-      'credential_id: ' + credId + '<br>' +
-      'claimed_status: ' + status + '<br>' +
-      'proof_hash (SHA256(status + salt), computed in-browser): ' + proof +
-      '<br><br><span class="text-slate-500">Copy these three values into the Customs Portal. The salt itself is never transmitted.</span>';
+    out.innerHTML = '';
+    [
+      ['credential_id', credId],
+      ['claimed_status', status],
+      ['proof_hash', proof],
+    ].forEach(([label, value]) => {
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-2';
+      const text = document.createElement('span');
+      text.className = 'flex-1 font-mono break-all';
+      text.textContent = label + ':';
+      if (label === 'claimed_status') {
+        const badge = document.createElement('span');
+        badge.className = 'px-2 py-0.5 rounded-full text-xs font-sans bg-emerald-900 text-emerald-300';
+        badge.textContent = value;
+        text.append(' ', badge);
+        row.append(text);
+        out.append(row);
+        return;
+      }
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'copy-value-btn shrink-0 px-2 py-1 border border-slate-700 rounded text-xs text-slate-300 hover:border-accent2 hover:text-accent2 transition';
+      copyBtn.textContent = 'Copy';
+      copyBtn.dataset.copyValue = value;
+      row.append(text, copyBtn);
+      out.append(row);
+    });
+    const note = document.createElement('div');
+    note.className = 'text-slate-500 pt-1';
+    note.textContent = 'Copy the three values into the Customs Portal. The salt itself is never transmitted.';
+    out.append(note);
   });
+});
+
+async function copyValue(value) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.append(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('Clipboard copy failed');
+}
+
+document.addEventListener('click', async (event) => {
+  const btn = event.target.closest('.copy-value-btn');
+  if (!btn) return;
+  const originalText = btn.textContent;
+  try {
+    await copyValue(btn.dataset.copyValue);
+    btn.textContent = 'Copied';
+  } catch (error) {
+    btn.textContent = 'Select manually';
+  }
+  setTimeout(() => { btn.textContent = originalText; }, 1500);
+});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+document.querySelectorAll('.gen-proof-btn').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('.rounded-2xl');
+    const status = card.querySelector('.assert-status').value;
+    const salt = btn.dataset.salt;
+    const credId = btn.dataset.credentialId;
+    const proof = await sha256Hex(status + salt);
+    const qrButton = card.querySelector('.show-qr-btn');
+    const qrModal = card.querySelector('.qr-modal');
+    const qrCode = qrModal.querySelector('.qr-code');
+    qrCode.innerHTML = '';
+    if (window.QRCode) {
+      new QRCode(qrCode, {
+        text: JSON.stringify({ version: 1, credential_id: credId, claimed_status: status, proof_hash: proof }),
+        width: 180,
+        height: 180,
+        correctLevel: QRCode.CorrectLevel.M,
+      });
+      qrButton.classList.remove('hidden');
+    }
+  });
+});
+
+document.addEventListener('click', (event) => {
+  const showButton = event.target.closest('.show-qr-btn');
+  if (showButton) {
+    showButton.closest('.rounded-2xl').querySelector('.qr-modal').classList.replace('hidden', 'flex');
+    return;
+  }
+  const closeButton = event.target.closest('.close-qr-btn');
+  if (closeButton) {
+    closeButton.closest('.qr-modal').classList.replace('flex', 'hidden');
+    return;
+  }
+  if (event.target.classList.contains('qr-modal')) {
+    event.target.classList.replace('flex', 'hidden');
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    document.querySelectorAll('.qr-modal.flex').forEach((modal) => modal.classList.replace('flex', 'hidden'));
+  }
 });
 </script>
 {% endblock %}

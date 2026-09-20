@@ -81,7 +81,7 @@ def issuer_console(request: Request):
 @app.get("/wallet", response_class=HTMLResponse)
 def traveler_wallet(request: Request, did: str = DEFAULT_HOLDER_DID):
     wallets = storage.read_wallets()
-    credentials = wallets.get(did, [])
+    credentials = list(reversed(wallets.get(did, [])))
     return templates.TemplateResponse(
         "wallet.html",
         {"request": request, "chain": _chain_status(), "holder_did": did, "credentials": credentials},
@@ -131,6 +131,16 @@ def issue_visa(
     storage only.
     """
     try:
+        registry = storage.read_registry()
+        if any(
+            record.get("holder_did") == holder_did and not record.get("revoked", False)
+            for record in registry.values()
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Holder DID already has an active credential",
+            )
+
         if not chain.did_exists(holder_did):
             placeholder_key = crypto_utils.generate_salt(32)
             chain.register_did(holder_did, placeholder_key)
@@ -174,7 +184,6 @@ def issue_visa(
         storage.write_wallets(wallets)
 
         # Verifier/issuer-facing record: NO PII, NO salt.
-        registry = storage.read_registry()
         registry[credential_id] = {
             "credential_id": credential_id,
             "issuer_did": ISSUER_DID,
@@ -200,6 +209,8 @@ def issue_visa(
                         "the registry (verifier-facing) holds only the commitment and hash.",
             }
         )
+    except HTTPException:
+        raise
     except chain.ChainNotReady as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:

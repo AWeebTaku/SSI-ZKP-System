@@ -7,23 +7,52 @@
   no PII is transmitted or stored here.
 </p>
 
+<div id="verify-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/75 backdrop-blur-sm">
+  <div class="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
+    <div id="verify-modal-icon" class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold"></div>
+    <h3 id="verify-modal-title" class="text-center text-lg font-semibold text-slate-100"></h3>
+    <p id="verify-modal-message" class="mt-2 text-center text-sm text-slate-300"></p>
+    <button id="verify-modal-close" type="button" class="mt-5 w-full rounded-md bg-emerald-400 px-3 py-2 text-sm font-medium text-slate-900 hover:opacity-90 transition">
+      Close
+    </button>
+  </div>
+</div>
+
 <div class="grid lg:grid-cols-2 gap-8">
   <section class="rounded-2xl border border-slate-800 bg-panel p-6">
     <h2 class="font-semibold mb-4">Submit for Verification</h2>
+    <div class="mb-5 border-b border-slate-800 pb-5">
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <h3 class="text-sm font-medium">Scan wallet proof QR</h3>
+        <button type="button" id="start-scanner" class="px-3 py-1.5 border border-slate-700 rounded-md text-xs text-slate-300 hover:border-emerald-400 hover:text-emerald-300 transition">
+          Start camera
+        </button>
+      </div>
+      <div id="qr-reader" class="hidden max-w-sm"></div>
+      <label class="block text-xs text-slate-500 mt-3" for="qr-file">Or upload a QR image</label>
+      <input id="qr-file" type="file" accept="image/*"
+             class="mt-1 block w-full text-xs text-slate-400 file:mr-3 file:rounded-md file:border file:border-slate-700 file:bg-slate-900 file:px-3 file:py-2 file:text-xs file:font-medium file:text-slate-200 file:cursor-pointer hover:file:border-emerald-400 hover:file:text-emerald-300" />
+      <p id="scan-status" class="hidden mt-2 text-xs" role="status"></p>
+    </div>
     <form id="verify-form" class="space-y-3">
       <div>
         <label class="text-xs text-slate-400">Credential ID</label>
-        <input name="credential_id" required placeholder="vc-..."
+        <input name="credential_id" required placeholder="vc-..." type="password" autocomplete="off"
                class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-400" />
       </div>
       <div>
         <label class="text-xs text-slate-400">Claimed status</label>
-        <input name="claimed_status" required value="VALID"
-               class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" />
+        <select name="claimed_status" required
+                class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+          <option value="VALID">VALID</option>
+          <option value="CONDITIONAL">CONDITIONAL</option>
+          <option value="DENIED">DENIED</option>
+          <option value="REVOKED">REVOKED</option>
+        </select>
       </div>
       <div>
         <label class="text-xs text-slate-400">Blinded proof hash</label>
-        <input name="proof_hash" required placeholder="SHA256(status + salt) from the Wallet"
+        <input name="proof_hash" required placeholder="SHA256(status + salt) from the Wallet" type="password" autocomplete="off"
                class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-400" />
       </div>
       <button type="submit" class="w-full mt-2 bg-emerald-400 text-slate-900 font-medium rounded-md py-2 hover:opacity-90 transition">
@@ -49,9 +78,33 @@
 </div>
 
 <script>
-document.getElementById('verify-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
+const modal = document.getElementById('verify-modal');
+const modalIcon = document.getElementById('verify-modal-icon');
+const modalTitle = document.getElementById('verify-modal-title');
+const modalMessage = document.getElementById('verify-modal-message');
+const modalClose = document.getElementById('verify-modal-close');
+
+function showVerificationModal(data) {
+  const verified = Boolean(data.verified);
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  modalIcon.textContent = verified ? '✓' : '!';
+  modalIcon.className = 'mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold ' +
+    (verified ? 'bg-emerald-900 text-emerald-300' : 'bg-rose-900 text-rose-300');
+  modalTitle.textContent = verified ? 'Verification successful' : 'Verification failed';
+  modalTitle.className = 'text-center text-lg font-semibold ' + (verified ? 'text-emerald-300' : 'text-rose-300');
+  modalMessage.textContent = verified ? 'Traveler may proceed.' : (data.reason || 'Please review the submitted proof and try again.');
+  modalClose.className = 'mt-5 w-full rounded-md px-3 py-2 text-sm font-medium text-slate-900 hover:opacity-90 transition ' +
+    (verified ? 'bg-emerald-400' : 'bg-rose-400');
+}
+
+modalClose.addEventListener('click', () => {
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+});
+
+async function submitVerification(form) {
+  const fd = new FormData(form);
   const res = await fetch('/verify-border', { method: 'POST', body: fd });
   const data = await res.json();
 
@@ -69,6 +122,86 @@ document.getElementById('verify-form').addEventListener('submit', async (e) => {
   document.getElementById('r-revoked').textContent = data.revoked;
   document.getElementById('r-expired').textContent = data.expired;
   document.getElementById('r-reason').textContent = data.reason;
+
+  form.reset();
+  form.elements.claimed_status.value = 'VALID';
+  showVerificationModal(data);
+  return data;
+}
+
+document.getElementById('verify-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await submitVerification(e.target);
+});
+</script>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+const scanStatus = document.getElementById('scan-status');
+const reader = document.getElementById('qr-reader');
+let scanner;
+
+function setScanStatus(message, isError = false) {
+  scanStatus.textContent = message;
+  scanStatus.className = 'mt-2 text-xs ' + (isError ? 'text-rose-300' : 'text-emerald-300');
+}
+
+async function applyQrPayload(raw) {
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch (error) {
+    throw new Error('This QR code is not a valid customs proof');
+  }
+  if (payload.version !== 1 || !payload.credential_id || !payload.claimed_status || !payload.proof_hash) {
+    throw new Error('QR code is missing required proof values');
+  }
+  const form = document.getElementById('verify-form');
+  form.elements.credential_id.value = payload.credential_id;
+  form.elements.claimed_status.value = payload.claimed_status;
+  form.elements.proof_hash.value = payload.proof_hash;
+  setScanStatus('QR proof loaded and verifying against chain...');
+  await submitVerification(form);
+}
+
+document.getElementById('start-scanner').addEventListener('click', async () => {
+  if (!window.Html5Qrcode) {
+    setScanStatus('QR scanner library could not be loaded.', true);
+    return;
+  }
+  reader.classList.remove('hidden');
+  scanner = new Html5Qrcode('qr-reader');
+  try {
+    await scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      async (decodedText) => {
+        try {
+          await scanner.stop();
+          reader.classList.add('hidden');
+          await applyQrPayload(decodedText);
+        } catch (error) {
+          setScanStatus(error.message, true);
+        }
+      },
+      () => {},
+    );
+  } catch (error) {
+    setScanStatus('Camera unavailable here. Use the QR image upload instead.', true);
+  }
+});
+
+document.getElementById('qr-file').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  if (!file || !window.Html5Qrcode) return;
+  const fileScanner = new Html5Qrcode('qr-reader');
+  try {
+    const decodedText = await fileScanner.scanFile(file, true);
+    await applyQrPayload(decodedText);
+  } catch (error) {
+    setScanStatus(error.message || 'Could not read this QR image.', true);
+  } finally {
+    fileScanner.clear();
+  }
 });
 </script>
 {% endblock %}

@@ -7,18 +7,9 @@ __pycache__/
 node_modules/
 
 # Generated compiler and deployment output.
-build/compiled.json
-build/DidRegistry.abi.json
-build/DidRegistry.bytecode.txt
-build/deployment.json
-
-# Runtime wallet and registry data can contain personal data.
-storage/wallets.json
-storage/registry.json.venv/
-__pycache__/
-*.pyc
 build/*
 !build/.gitkeep
+
+# Runtime wallet and registry data can contain personal data.
 storage/*
 !storage/.gitkeep
-.env
