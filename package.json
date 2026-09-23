@@ -3,7 +3,7 @@
     "ganache": "^7.9.2"
   },
   "allowScripts": {
-    "bufferutil@4.0.5": true,
-    "utf-8-validate@5.0.7": true
+    "bufferutil": true,
+    "utf-8-validate": true
   }
 }
