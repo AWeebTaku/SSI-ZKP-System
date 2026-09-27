@@ -10,8 +10,14 @@
     <form id="issue-form" class="space-y-3">
       <div>
         <label class="text-xs text-slate-400">Holder DID</label>
-        <input name="holder_did" required placeholder="did:ssi:holder:demo-traveler"
-               class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent" />
+        <div class="flex gap-2 mt-1">
+          <input name="holder_did" required placeholder="did:ssi:holder:demo-traveler"
+                 class="min-w-0 flex-1 bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent" />
+          <button type="button" id="check-holder-button"
+                  class="shrink-0 rounded-md border border-slate-700 px-3 py-2 text-sm hover:border-accent hover:text-accent transition disabled:opacity-50 disabled:cursor-wait">
+            Check
+          </button>
+        </div>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -122,9 +128,80 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 4500);
 }
 
+// Issuer-side convenience only: autofill a repeat holder's last-known
+// details, and warn before silently overwriting them with something
+// different. See storage.py's module docstring -- this cache is not part
+// of the SSI protocol, just an operator convenience on top of it.
+let holderSnapshot = null; // { did, traveler_name, passport_number, nationality }
+
+const holderDidInput = document.querySelector('input[name="holder_did"]');
+const travelerNameInput = document.querySelector('input[name="traveler_name"]');
+const passportInput = document.querySelector('input[name="passport_number"]');
+const nationalitySelect = document.querySelector('select[name="nationality"]');
+const holderLookupButton = document.getElementById('check-holder-button');
+let holderLookupPending = false;
+
+holderLookupButton.addEventListener('click', async () => {
+  const did = holderDidInput.value.trim();
+  holderSnapshot = null;
+  if (!did) {
+    showToast('Enter a Holder DID to check.', 'error');
+    return;
+  }
+
+  holderLookupPending = true;
+  holderLookupButton.disabled = true;
+  try {
+    const res = await fetch(`/api/holder/${encodeURIComponent(did)}`);
+    if (!res.ok) throw new Error('Holder lookup failed');
+    const data = await res.json();
+    if (holderDidInput.value.trim() !== did) return;
+
+    if (data.found) {
+      travelerNameInput.value = data.traveler_name || '';
+      passportInput.value = data.passport_number || '';
+      if (data.nationality) nationalitySelect.value = data.nationality;
+      holderSnapshot = {
+        did,
+        traveler_name: data.traveler_name || '',
+        passport_number: data.passport_number || '',
+        nationality: data.nationality || '',
+      };
+      showToast('Saved DID details loaded.');
+    } else {
+      showToast('DID details do not exist.', 'error');
+    }
+  } catch (err) {
+    showToast('Could not check DID details.', 'error');
+  } finally {
+    holderLookupPending = false;
+    holderLookupButton.disabled = false;
+  }
+});
+
 document.getElementById('issue-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (holderLookupPending) {
+    showToast('Please wait for the DID check to finish.', 'error');
+    return;
+  }
   const fd = new FormData(e.target);
+  const holderDid = (fd.get('holder_did') || '').trim();
+
+  if (holderSnapshot && holderSnapshot.did === holderDid) {
+    const changed =
+      fd.get('traveler_name') !== holderSnapshot.traveler_name ||
+      fd.get('passport_number') !== holderSnapshot.passport_number ||
+      fd.get('nationality') !== holderSnapshot.nationality;
+    if (changed) {
+      const proceed = confirm(
+        `A record already exists for ${holderDid} and differs from what you've entered ` +
+        `(name/passport/nationality). Save these updated details, overwriting the existing record?`
+      );
+      if (!proceed) return;
+    }
+  }
+
   try {
     const res = await fetch('/issue-visa', { method: 'POST', body: fd });
     const data = await res.json();

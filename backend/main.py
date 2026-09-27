@@ -115,6 +115,21 @@ def register_did_endpoint(did: str = Form(...), public_key_hex: str = Form(...))
 # API: Issuance
 # ---------------------------------------------------------------------------
 
+@app.get("/api/holder/{holder_did}")
+def lookup_holder(holder_did: str):
+    """
+    Issuer-side convenience lookup only -- returns whatever the Issuer
+    Console has on file for this holder_did from a previous issuance, so
+    the form can autofill instead of the clerk retyping it. Purely a read
+    of storage/holders.json; never touches the chain or any other store.
+    """
+    holders = storage.read_holders()
+    record = holders.get(holder_did)
+    if record is None:
+        return JSONResponse({"found": False})
+    return JSONResponse({"found": True, **record})
+
+
 @app.post("/issue-visa")
 def issue_visa(
     holder_did: str = Form(...),
@@ -197,6 +212,21 @@ def issue_visa(
             "revoked": False,
         }
         storage.write_registry(registry)
+
+        # Issuer-side convenience cache only (see storage.py's module
+        # docstring) -- last-submitted details for this holder_did, so a
+        # repeat visit can autofill instead of retyping. Confirming
+        # whether to overwrite an existing, differing record is handled
+        # client-side before this request is even sent (see issuer.html);
+        # by the time we get here the operator has already agreed.
+        holders = storage.read_holders()
+        holders[holder_did] = {
+            "traveler_name": traveler_name,
+            "passport_number": passport_number,
+            "nationality": nationality,
+            "updated_at": issued_at,
+        }
+        storage.write_holders(holders)
 
         return JSONResponse(
             {
