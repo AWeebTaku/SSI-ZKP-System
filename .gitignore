@@ -13,5 +13,3 @@ build/*
 # Runtime wallet and registry data can contain personal data.
 storage/*
 !storage/.gitkeep
-
-reports
