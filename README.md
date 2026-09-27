@@ -44,17 +44,91 @@ registry and `isRevoked()` on-chain; it never receives the salt or raw PII.
 
 ### 2.1 Install prerequisites
 
-Install Python 3.10 or newer with `pip` and `venv`, Node.js 18 or newer with
-`npm`, and optionally Git. Use the official installer or package manager for
-your operating system. Then open a terminal in the project root.
+This project is tested against **Python 3.11-3.13** and **Node.js 20 LTS**.
+Avoid Python 3.14 for now -- two dependencies with native extensions
+(`pydantic-core`, via Rust/PyO3, and `ckzg`, via a C extension) don't
+reliably have prebuilt wheels for 3.14 yet on every platform, which forces
+a from-source build that fails outright on a machine without a C/C++
+toolchain (most commonly Windows -- see Troubleshooting). If a supported
+version isn't already installed, use the commands for your OS below.
+
+**Arch Linux:** `pacman`'s `python` package tracks upstream releases
+closely and may already be newer than 3.13 -- check with `python
+--version` before assuming it's fine. If it's too new, install a pinned
+version with `pyenv` (in the official `extra` repo) rather than fighting
+the system package:
+
+```bash
+sudo pacman -S pyenv git base-devel nodejs npm
+pyenv install 3.12.8
+pyenv local 3.12.8   # run from the project root; writes a .python-version file
+```
+
+**Debian / Ubuntu:**
+
+```bash
+sudo apt update
+sudo apt install python3.12 python3.12-venv python3-pip nodejs npm git
+```
+
+If `python3.12` isn't available in your release's repos, install it via
+the [deadsnakes PPA](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa)
+(Ubuntu) or with `pyenv`'s official installer: `curl https://pyenv.run | bash`.
+
+**Fedora:**
+
+```bash
+sudo dnf install python3.12 nodejs npm git
+```
+
+**macOS (Homebrew):**
+
+```bash
+brew install pyenv node@20 git
+pyenv install 3.12.8
+pyenv local 3.12.8   # run from the project root
+```
+
+**Windows:** download the Python 3.12.x installer from
+[python.org/downloads](https://www.python.org/downloads/) -- on the first
+setup screen, check **"Add python.exe to PATH"** -- and the Node.js 20 LTS
+installer from [nodejs.org](https://nodejs.org/). Both coexist fine
+alongside any other Python/Node versions already on the machine; nothing
+needs to be uninstalled, since the next step targets the right one
+explicitly with the `py` launcher.
+
+Then verify you're pointed at a supported version:
+
+```text
+python --version
+node --version
+```
+
+On Windows, if `python --version` doesn't show 3.12.x (e.g. 3.14 is your
+default), use `py -3.12 --version` instead -- the `py` launcher can target
+a specific installed version without changing your system default.
 
 ### 2.2 Create a Python environment
 
-Create the environment once:
+Create the environment once, using the interpreter version confirmed
+above rather than a bare `python` that might resolve to something newer
+than this project supports:
 
-```text
-python -m venv .venv
+Windows:
+
+```powershell
+py -3.12 -m venv .venv
 ```
+
+macOS/Linux:
+
+```bash
+python3.12 -m venv .venv
+```
+
+(If you installed Python via `pyenv` and ran `pyenv local 3.12.8` in 2.1,
+plain `python3.12 -m venv .venv` -- or even `python -m venv .venv` -- will
+already resolve to the right version automatically.)
 
 Activate it for the current terminal session:
 
@@ -283,3 +357,13 @@ curl -X POST http://127.0.0.1:8000/register-did \
   `deployment.json` will point at a contract address that no longer exists.
 - **Port already in use**: change `--port` for either `ganache` or
   `uvicorn`, and update `GANACHE_URL` accordingly.
+- **`pip install` fails building `pydantic-core` or `ckzg`** (Rust/`cargo`
+  or `'cl' is not recognized` errors): you're very likely on Python 3.14.
+  Neither package reliably ships prebuilt wheels for 3.14 yet, so `pip`
+  falls back to compiling from source -- which then needs a Rust
+  toolchain PyO3 doesn't yet support that far, or (for `ckzg`) an MSVC
+  compiler that a default Windows install doesn't have. This isn't a
+  missing-tool problem you can install your way out of for the
+  `pydantic-core` half; installing a supported Python version fixes both
+  at once. See section 2.1 above for per-OS install commands, then
+  recreate `.venv` with that version (section 2.2) and reinstall.
